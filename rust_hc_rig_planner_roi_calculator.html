@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rust HC Rig Planner & ROI Calculator v2.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0c0e12;
+      color: #d1d5db;
+    }
+    .font-tech {
+      font-family: 'Chakra Petch', sans-serif;
+    }
+    .font-mono-val {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #11141b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27303f;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3b465b;
+    }
+    /* Glow highlights */
+    .glow-lime {
+      box-shadow: 0 0 15px -3px rgba(132, 204, 22, 0.25);
+    }
+    .glow-amber {
+      box-shadow: 0 0 15px -3px rgba(245, 158, 11, 0.2);
+    }
+    /* Custom tab indicators */
+    .tab-active {
+      background: rgba(132, 204, 22, 0.12);
+      color: #a3e635;
+      border-color: rgba(132, 204, 22, 0.4);
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased flex flex-col justify-between selection:bg-lime-500 selection:text-black">
+
+  <!-- Hidden File Input for Farm Import -->
+  <input type="file" id="file-import" class="hidden" accept=".json">
+
+  <!-- Toast Notification Bar -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 shadow-2xl text-xs font-mono-val text-zinc-100 flex items-center gap-2">
+    <span class="w-2 h-2 rounded-full bg-lime-400 animate-ping"></span>
+    <span id="toast-text">Notification</span>
+  </div>
+
+  <!-- Top Bar / App Navigation Header -->
+  <header class="border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      
+      <!-- Brand & Version -->
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-lime-500 via-emerald-600 to-teal-800 flex items-center justify-center text-zinc-950 font-black font-tech text-lg shadow-inner select-none">
+          HC
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-wider uppercase font-tech text-zinc-100">
+              Rust HC Rig Planner
+            </h1>
+            <span class="text-[10px] px-1.5 py-0.2 rounded bg-lime-950 text-lime-400 border border-lime-600/40 font-mono-val">BY SBIGZA</span>
+          </div>
+          <p class="text-xs text-zinc-500 hidden sm:block">Empirical Hardware Simulator & Multi-Rig Farm Manager</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center gap-1 sm:gap-2">
+        <button id="tab-builder" class="tab-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-transparent transition text-zinc-400 hover:text-zinc-200 tab-active" onclick="switchTab('builder')">
+          Rig Builder
+        </button>
+        <button id="tab-farm" class="tab-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-transparent transition text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5" onclick="switchTab('farm')">
+          <span>My Farm</span>
+          <span id="farm-badge" class="px-1.5 py-0.2 text-[10px] font-mono-val rounded-full bg-zinc-800 text-zinc-400">0</span>
+        </button>
+        <button id="tab-database" class="tab-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-transparent transition text-zinc-400 hover:text-zinc-200" onclick="switchTab('database')">
+          Hardware DB
+        </button>
+        <button id="tab-docs" class="tab-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-transparent transition text-zinc-400 hover:text-zinc-200" onclick="switchTab('docs')">
+          Docs
+        </button>
+      </nav>
+
+      <!-- Language & Quick Sync -->
+      <div class="flex items-center gap-2">
+        <button id="lang-btn" class="px-2 py-1 text-xs font-mono-val font-semibold rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-200 transition">
+          EN
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Multi-View Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1">
+
+    <!-- ========================================== -->
+    <!-- VIEW 1: RIG BUILDER & LIVE SIMULATOR       -->
+    <!-- ========================================== -->
+    <div id="view-builder" class="view-panel grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      
+      <!-- Left Configurator Column -->
+      <div class="lg:col-span-7 xl:col-span-8 space-y-4">
+        
+        <!-- Header Controls & Rig Presets Bar -->
+        <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-lime-400 font-tech">Active Chassis Configurator</span>
+            <div class="flex items-center gap-2 mt-1">
+              <input id="rig-name-input" type="text" maxlength="40" placeholder="Rig Profile Name..." value="Rig #1" class="bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-sm font-semibold text-zinc-200 focus:outline-none focus:ring-1 focus:ring-lime-500 w-48 sm:w-60">
+              <span id="editing-indicator" class="hidden text-[10px] px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-800 font-mono-val">EDITING</span>
+            </div>
+          </div>
+
+          <!-- Quick Presets -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-xs text-zinc-500 mr-1">Presets:</span>
+            <button onclick="setPreset('T3')" class="px-2.5 py-1 text-xs font-semibold rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition">T3</button>
+            <button onclick="setPreset('T4')" class="px-2.5 py-1 text-xs font-semibold rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition">T4</button>
+            <button onclick="setPreset('T5')" class="px-2.5 py-1 text-xs font-semibold rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition">T5</button>
+            <button onclick="setPreset('clear')" class="px-2 py-1 text-xs font-semibold rounded bg-rose-950/50 hover:bg-rose-900/60 border border-rose-800/40 text-rose-300 transition ml-1">Reset</button>
+          </div>
+        </div>
+
+        <!-- Foundation Slot 0: Primary Motherboard -->
+        <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow-lg">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-lime-400 font-tech">Foundation Slot [0]</span>
+              <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                Primary Motherboard
+              </h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <label for="mb-selector" class="text-xs text-zinc-400 font-medium">Platform Tier:</label>
+              <select id="mb-selector" class="bg-zinc-950 border border-lime-600/50 rounded-lg px-3 py-1.5 text-sm font-semibold text-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-500 transition">
+                <option value="">No Motherboard (Rig Offline)</option>
+                <option value="T3">Tier 3 MB (Unlocks Min T3)</option>
+                <option value="T4">Tier 4 MB (Unlocks Min T4)</option>
+                <option value="T5">Tier 5 MB (Full Chassis Unlocked)</option>
+              </select>
+            </div>
+          </div>
+          <p id="mb-summary" class="text-xs text-zinc-400 mt-2">
+            Select a motherboard to energize the rig chassis and unblock downstream hardware sockets.
+          </p>
+        </div>
+
+        <!-- Expansion Sockets Container -->
+        <div class="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-bold uppercase tracking-wider text-zinc-300 font-tech">Chassis Expansion Slots</h3>
+            <span id="slot-counter" class="text-xs font-mono-val text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">0 / 18 Occupied</span>
+          </div>
+
+          <div id="slots-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            <!-- Dynamically Rendered by JavaScript -->
+          </div>
+        </div>
+
+        <!-- Rig Persistence Buttons -->
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button id="cancel-edit-btn" onclick="cancelEdit()" class="hidden px-4 py-2 text-xs font-semibold rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition">
+            Cancel Edit
+          </button>
+          <button id="save-rig-btn" onclick="saveCurrentRig()" class="px-5 py-2 text-xs font-bold rounded-lg bg-lime-500 hover:bg-lime-400 text-zinc-950 transition flex items-center gap-2 shadow-lg glow-lime">
+            <span>💾 Save Rig to Farm</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Right Dashboard Column (Live Yield & Analytics) -->
+      <div class="lg:col-span-5 xl:col-span-4 space-y-4 lg:sticky lg:top-20">
+        
+        <!-- Live Earnings Overview Card -->
+        <div class="bg-zinc-900/95 border border-zinc-800/90 rounded-xl p-5 shadow-xl relative overflow-hidden">
+          <div class="absolute -top-12 -right-12 w-32 h-32 bg-lime-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+          <div class="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-zinc-400 font-tech">Real-Time Output</span>
+              <h3 class="text-lg font-bold text-white font-tech">Rig Analytics</h3>
+            </div>
+            <div id="status-pill" class="text-xs font-bold px-2 py-0.5 rounded uppercase font-mono-val bg-zinc-800 text-zinc-400">
+              Offline
+            </div>
+          </div>
+
+          <!-- Main Metrics Grid -->
+          <div class="mt-4 grid grid-cols-2 gap-3">
+            <div class="bg-zinc-950/70 p-3 rounded-lg border border-zinc-800/80">
+              <span class="text-xs text-zinc-400 block mb-1">Daily Inflow</span>
+              <div class="flex items-baseline gap-1">
+                <span id="stat-day" class="text-2xl font-bold font-mono-val text-lime-400">0.0000</span>
+                <span class="text-xs font-bold text-zinc-500">HC/d</span>
+              </div>
+            </div>
+
+            <div class="bg-zinc-950/70 p-3 rounded-lg border border-zinc-800/80">
+              <span class="text-xs text-zinc-400 block mb-1">Hourly Inflow</span>
+              <div class="flex items-baseline gap-1">
+                <span id="stat-hour" class="text-2xl font-bold font-mono-val text-zinc-100">0.0000</span>
+                <span class="text-xs font-bold text-zinc-500">HC/h</span>
+              </div>
+            </div>
+
+            <div class="bg-zinc-950/70 p-3 rounded-lg border border-zinc-800/80">
+              <span class="text-xs text-zinc-400 block mb-1">Hardware Cost</span>
+              <div class="flex items-baseline gap-1">
+                <span id="stat-cost" class="text-2xl font-bold font-mono-val text-amber-400">0.00</span>
+                <span class="text-xs font-bold text-zinc-500">HC</span>
+              </div>
+            </div>
+
+            <div class="bg-zinc-950/70 p-3 rounded-lg border border-zinc-800/80">
+              <span class="text-xs text-zinc-400 block mb-1">Amortization</span>
+              <div class="flex items-baseline gap-1">
+                <span id="stat-payback" class="text-2xl font-bold font-mono-val text-sky-400">—</span>
+                <span class="text-xs font-bold text-zinc-500">Days</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Power Status Bar -->
+          <div class="mt-5 space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-medium text-zinc-300">Power Demand / Capacity</span>
+              <span id="power-text" class="font-mono-val font-semibold text-zinc-300">0.0 / 0 W</span>
+            </div>
+            <div class="w-full bg-zinc-950 h-2.5 rounded-full overflow-hidden border border-zinc-800">
+              <div id="power-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p id="overload-warning" class="text-[11px] text-rose-400 font-semibold hidden flex items-center gap-1 mt-1">
+              ⚠️ Power demand exceeds available PSU capacity! Rig will fail.
+            </p>
+          </div>
+
+          <!-- Thermal & Fan Gauges -->
+          <div class="mt-4 pt-4 border-t border-zinc-800/80 grid grid-cols-2 gap-3">
+            <div>
+              <div class="flex justify-between text-xs text-zinc-400 mb-1">
+                <span>Thermal Index</span>
+                <span id="heat-text" class="font-mono-val text-zinc-200">0.0</span>
+              </div>
+              <div class="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden border border-zinc-800">
+                <div id="heat-bar" class="h-full bg-amber-500 transition-all duration-300" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs text-zinc-400 mb-1">
+                <span>Cooling Ratio</span>
+                <span id="cool-text" class="font-mono-val text-zinc-200">0.0%</span>
+              </div>
+              <div class="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden border border-zinc-800">
+                <div id="cool-bar" class="h-full bg-sky-500 transition-all duration-300" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Wipe Net Profit Calculator Widget -->
+        <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-zinc-400 font-tech">Wipe Cycle Projection</span>
+            <span class="text-[11px] text-zinc-500 font-mono-val">Single Rig</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <label for="wipe-days" class="text-xs text-zinc-400 whitespace-nowrap">Remaining Wipe Days:</label>
+            <input type="number" id="wipe-days" min="1" max="60" value="14" class="w-20 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-sm font-mono-val text-right text-zinc-100 focus:outline-none focus:ring-1 focus:ring-lime-500">
+            <span class="text-xs text-zinc-500">Days</span>
+          </div>
+
+          <div class="bg-zinc-950/60 rounded-lg p-2.5 border border-zinc-800/80 flex items-center justify-between">
+            <span class="text-xs text-zinc-400">Net Profit (After Rig Cost):</span>
+            <span id="stat-net" class="font-mono-val font-bold text-sm text-lime-400">0.00 HC</span>
+          </div>
+        </div>
+
+        <!-- Operational Notes -->
+        <div class="p-3 bg-zinc-950/40 border border-zinc-800/50 rounded-lg text-[11px] text-zinc-500 space-y-1">
+          <p>• Motherboard determines maximum component tier sockets.</p>
+          <p>• Rig requires at least 1 PSU and 1 Motherboard to produce yield.</p>
+          <p>• Values calibrated against HC_farming FINAL empirical datasets.</p>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW 2: MY FARM & AGGREGATE FORECASTER     -->
+    <!-- ========================================== -->
+    <div id="view-farm" class="view-panel hidden space-y-6">
+      
+      <!-- Farm Control & Backup Toolbar -->
+      <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-white font-tech flex items-center gap-2">
+            Server Farm Overview
+            <span id="farm-rig-count" class="text-xs font-mono-val px-2 py-0.5 rounded bg-zinc-800 text-lime-400">0 Rigs Active</span>
+          </h2>
+          <p class="text-xs text-zinc-400">Aggregated yields, total capital expenditure, and scheduled wipe forecast.</p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="exportFarmJSON()" class="px-3 py-1.5 text-xs font-semibold rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 transition flex items-center gap-1.5">
+            <span>📤 Export Backup</span>
+          </button>
+          <button onclick="document.getElementById('file-import').click()" class="px-3 py-1.5 text-xs font-semibold rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 transition flex items-center gap-1.5">
+            <span>📥 Import Backup</span>
+          </button>
+          <button onclick="switchTab('builder')" class="px-3 py-1.5 text-xs font-bold rounded bg-lime-500 hover:bg-lime-400 text-zinc-950 transition flex items-center gap-1.5 shadow-sm glow-lime">
+            <span>+ Build New Rig</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Farm Totals Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow">
+          <span class="text-xs text-zinc-400 block mb-1">Total Daily Production</span>
+          <div class="flex items-baseline gap-1">
+            <span id="farm-stat-day" class="text-2xl font-bold font-mono-val text-lime-400">0.0000</span>
+            <span class="text-xs font-bold text-zinc-500">HC/d</span>
+          </div>
+          <span id="farm-stat-hour" class="text-[11px] text-zinc-500 font-mono-val mt-1 block">~0.00 HC/h</span>
+        </div>
+
+        <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow">
+          <span class="text-xs text-zinc-400 block mb-1">Total Capital Invested</span>
+          <div class="flex items-baseline gap-1">
+            <span id="farm-stat-cost" class="text-2xl font-bold font-mono-val text-amber-400">0.00</span>
+            <span class="text-xs font-bold text-zinc-500">HC</span>
+          </div>
+          <span class="text-[11px] text-zinc-500 block mt-1">Total Hardware Spent</span>
+        </div>
+
+        <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow">
+          <span class="text-xs text-zinc-400 block mb-1">Farm Payback Amortization</span>
+          <div class="flex items-baseline gap-1">
+            <span id="farm-stat-payback" class="text-2xl font-bold font-mono-val text-sky-400">—</span>
+            <span class="text-xs font-bold text-zinc-500">Days</span>
+          </div>
+          <span class="text-[11px] text-zinc-500 block mt-1">Blended Break-Even Time</span>
+        </div>
+
+        <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow">
+          <span class="text-xs text-zinc-400 block mb-1">Aggregated Power Draw</span>
+          <div class="flex items-baseline gap-1">
+            <span id="farm-stat-power" class="text-2xl font-bold font-mono-val text-purple-400">0</span>
+            <span class="text-xs font-bold text-zinc-500">W</span>
+          </div>
+          <span id="farm-stat-capacity" class="text-[11px] text-zinc-500 font-mono-val mt-1 block">Capacity: 0 W</span>
+        </div>
+      </div>
+
+      <!-- Individual Rig List Container -->
+      <div class="bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-4 shadow">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-zinc-300 font-tech mb-3">Saved Hardware Rigs</h3>
+        
+        <div id="farm-rigs-list" class="space-y-3">
+          <!-- Dynamically populated or empty state rendered here -->
+        </div>
+      </div>
+
+      <!-- Wipe Forecast & Timeline Card -->
+      <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-5 shadow space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-3">
+          <div>
+            <h3 class="text-base font-bold text-white font-tech">Wipe Amortization & Forecast</h3>
+            <p class="text-xs text-zinc-400">Calculates cumulative yield from farm commissioning date through upcoming server wipe.</p>
+          </div>
+          <div id="forecast-badge" class="text-xs font-mono-val px-2.5 py-1 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+            Countdown Active
+          </div>
+        </div>
+
+        <!-- Date & Cycle Controls -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label for="date-start" class="text-xs text-zinc-400 block mb-1">Farm Commission Date:</label>
+            <input type="datetime-local" id="date-start" class="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 font-mono-val focus:outline-none focus:ring-1 focus:ring-lime-500">
+          </div>
+          <div>
+            <label for="date-wipe" class="text-xs text-zinc-400 block mb-1">Next Server Wipe Date:</label>
+            <input type="datetime-local" id="date-wipe" class="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 font-mono-val focus:outline-none focus:ring-1 focus:ring-lime-500">
+          </div>
+          <div>
+            <label for="wipe-cycle-days" class="text-xs text-zinc-400 block mb-1">Recurring Wipe Cycle:</label>
+            <div class="flex items-center gap-2">
+              <input type="number" id="wipe-cycle-days" min="1" max="365" value="14" class="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 font-mono-val focus:outline-none focus:ring-1 focus:ring-lime-500">
+              <button onclick="advanceWipeCycle()" class="whitespace-nowrap px-2.5 py-1.5 text-xs font-semibold rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition">
+                +1 Cycle
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Wipe Metrics Summary Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          <div class="bg-zinc-950/70 p-3 rounded-lg border border-zinc-800/80">
+            <span class="text-xs text-zinc-400 block mb-1">Time Remaining</span>
+            <div id="countdown-display" class="text-xl font-bold font-mono-val text-zinc-100">0.0 hrs</div>
+            <span class="text-[10px] text-zinc-500 block">From Current Time</span>
+          </div>
+
+          <div class="bg-zinc-950/70 p-3 rounded-lg border border-zinc-800/80">
+            <span class="text-xs text-zinc-400 block mb-1">Gross Yield by Wipe</span>
+            <div id="forecast-gross" class="text-xl font-bold font-mono-val text-lime-400">0.00 HC</div>
+            <span class="text-[10px] text-zinc-500 block">Total Mined Across Window</span>
+          </div>
+
+          <div class="bg-zinc-950/70 p-3 rounded-lg border border-zinc-800/80">
+            <span class="text-xs text-zinc-400 block mb-1">Net Wipe Profit</span>
+            <div id="forecast-net" class="text-xl font-bold font-mono-val text-emerald-400">0.00 HC</div>
+            <span class="text-[10px] text-zinc-500 block">Gross Yield Less Hardware Cost</span>
+          </div>
+        </div>
+
+        <!-- Rig by Rig Breakdown Table -->
+        <div class="overflow-x-auto pt-2">
+          <table class="w-full text-left text-xs border border-zinc-800 rounded-lg overflow-hidden">
+            <thead class="bg-zinc-950 text-zinc-400 font-tech uppercase text-[11px]">
+              <tr>
+                <th class="p-2.5">Rig Profile</th>
+                <th class="p-2.5">Platform</th>
+                <th class="p-2.5">Daily Rate</th>
+                <th class="p-2.5">Gross Revenue</th>
+                <th class="p-2.5">Net Profit</th>
+                <th class="p-2.5 text-center">Paid Off?</th>
+              </tr>
+            </thead>
+            <tbody id="forecast-table-body" class="divide-y divide-zinc-800/70 bg-zinc-900/40">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW 3: HARDWARE BENCHMARK & ROI DATABASE  -->
+    <!-- ========================================== -->
+    <div id="view-database" class="view-panel hidden space-y-4">
+      
+      <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-white font-tech">Hardware Component Specifications</h2>
+          <p class="text-xs text-zinc-400">Baseline values and payback rankings calibrated against empirical game plugin records.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <select id="db-filter" onchange="renderDatabaseTable()" class="bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-xs text-zinc-200">
+            <option value="ALL">All Categories</option>
+            <option value="GPU">Graphics Cards (GPU)</option>
+            <option value="CPU">Processors (CPU)</option>
+            <option value="RAM">Memory Modules (RAM)</option>
+            <option value="PS">Power Supplies (PSU)</option>
+            <option value="COOL">Cooling Solutions</option>
+            <option value="MB">Motherboards</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="bg-zinc-900/80 border border-zinc-800/80 rounded-xl overflow-hidden shadow">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-zinc-950 text-zinc-400 font-tech uppercase text-[11px] border-b border-zinc-800">
+              <tr>
+                <th class="p-3">Component</th>
+                <th class="p-3">Type</th>
+                <th class="p-3">Tier</th>
+                <th class="p-3">Cost (HC)</th>
+                <th class="p-3">Daily Yield</th>
+                <th class="p-3">Power (W)</th>
+                <th class="p-3">PSU Capacity</th>
+                <th class="p-3">Thermal / Cooling</th>
+                <th class="p-3">Payback Period</th>
+              </tr>
+            </thead>
+            <tbody id="db-table-body" class="divide-y divide-zinc-800/70 font-mono-val">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW 4: DOCUMENTATION & USER MANUAL        -->
+    <!-- ========================================== -->
+    <div id="view-docs" class="view-panel hidden space-y-6">
+      
+      <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-xl p-6 shadow space-y-6 max-w-4xl mx-auto">
+        
+        <div>
+          <h2 class="text-2xl font-bold text-white font-tech mb-2">Rust HC Rig Architecture &amp; Mechanics</h2>
+          <p class="text-sm text-zinc-400 leading-relaxed">
+            The Rust Hardware Crypto (HC) mining plugin replicates crypto currency mining rigs in-game. To assemble operational rigs, players must adhere to socket hierarchy, electrical load constraints, and thermal dissipation metrics.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-zinc-950/70 border border-zinc-800 rounded-lg p-4 space-y-2">
+            <h3 class="text-sm font-bold text-lime-400 font-tech uppercase">1. Motherboard Socket Rails</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              The primary motherboard determines which expansion slots are electrically enabled:
+            </p>
+            <ul class="text-xs text-zinc-300 space-y-1 list-disc list-inside">
+              <li><strong class="text-zinc-100">Tier 3 MB:</strong> Unlocks slots with minimum requirement of T3 (1x CPU, 1x Cooler, 1x PSU, 2x GPU, 2x RAM).</li>
+              <li><strong class="text-zinc-100">Tier 4 MB:</strong> Unlocks all T3 slots plus 1 additional GPU slot and 2 additional RAM slots.</li>
+              <li><strong class="text-zinc-100">Tier 5 MB:</strong> Unlocks the entire 18-slot chassis including dual-CPUs, dual-PSUs, 4 GPUs, and 8 RAM modules.</li>
+            </ul>
+          </div>
+
+          <div class="bg-zinc-950/70 border border-zinc-800 rounded-lg p-4 space-y-2">
+            <h3 class="text-sm font-bold text-sky-400 font-tech uppercase">2. Power &amp; PSU Overload</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              Every installed component draws wattage (<code class="text-zinc-200">W</code>). Power supplies furnish capacity:
+            </p>
+            <ul class="text-xs text-zinc-300 space-y-1 list-disc list-inside">
+              <li><code class="text-zinc-200">T3PS:</code> 800 Watts output.</li>
+              <li><code class="text-zinc-200">T4PS:</code> 1200 Watts output.</li>
+              <li><code class="text-zinc-200">T5PS:</code> 2000 Watts output.</li>
+            </ul>
+            <p class="text-xs text-rose-400 pt-1">
+              If total power demand exceeds cumulative PSU capacity, the rig transitions to <strong>PSU Overload</strong> and will fail.
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950/70 border border-zinc-800 rounded-lg p-4 space-y-3">
+          <h3 class="text-sm font-bold text-amber-400 font-tech uppercase">3. Mathematical Formulas</h3>
+          
+          <div class="space-y-2 text-xs font-mono-val">
+            <div class="p-2 bg-zinc-900 rounded border border-zinc-800">
+              <span class="text-zinc-400 block mb-1"># Gross Daily Rate</span>
+              <span class="text-lime-300">Daily_Yield = &Sigma; (Component_Yield)</span>
+            </div>
+
+            <div class="p-2 bg-zinc-900 rounded border border-zinc-800">
+              <span class="text-zinc-400 block mb-1"># Amortization Payback Period</span>
+              <span class="text-sky-300">Payback_Days = Total_Cost_HC / Daily_Yield_HC</span>
+            </div>
+
+            <div class="p-2 bg-zinc-900 rounded border border-zinc-800">
+              <span class="text-zinc-400 block mb-1"># Wipe Net Income Forecast</span>
+              <span class="text-emerald-300">Net_Profit = (Daily_Yield &times; (Wipe_Hours / 24)) - Total_Cost_HC</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-zinc-900 bg-zinc-950 py-3 text-center text-xs text-zinc-600">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <span>Rust HC Rig Planner &amp; ROI Engine · v2.0 Client-Side Web Application</span>
+      <span class="font-mono-val text-[11px] text-zinc-500">Zero Server Telemetry · Stored Locally</span>
+    </div>
+  </footer>
+
+  <!-- Application Logic -->
+  <script>
+    // Component specification dataset
+    const PARTS = {
+      "T3RAM": {"cost": 0.15, "day": 0.0525, "power": 6, "capacity": 0, "heat": 0.9, "cooling": 0.007},
+      "T3GPU": {"cost": 5, "day": 1.575, "power": 310.7, "capacity": 0, "heat": 11.3, "cooling": 0.01},
+      "T3CPU": {"cost": 2.5, "day": 0.84, "power": 104.8, "capacity": 0, "heat": 3.9, "cooling": 0.102},
+      "T3COOL": {"cost": 0.6, "day": 0, "power": 27.8, "capacity": 0, "heat": 17.5, "cooling": 0.291},
+      "T3PS": {"cost": 0.9, "day": 0, "power": 14.5, "capacity": 800, "heat": 11.5, "cooling": 0.012},
+      "T3MB": {"cost": 2, "day": 0, "power": 14.5, "capacity": 0, "heat": 11.5, "cooling": 0.183},
+      "T4RAM": {"cost": 1.5, "day": 0.3, "power": 8, "capacity": 0, "heat": 1.1, "cooling": 0},
+      "T4GPU": {"cost": 65, "day": 9, "power": 310.9, "capacity": 0, "heat": 13.3, "cooling": 0.016},
+      "T4CPU": {"cost": 25, "day": 4.8, "power": 140, "capacity": 0, "heat": 5, "cooling": 0.088},
+      "T4COOL": {"cost": 8, "day": 0, "power": 29.7, "capacity": 0, "heat": -3.5, "cooling": 0},
+      "T4PS": {"cost": 10, "day": 0, "power": 22.9, "capacity": 1200, "heat": 7.6, "cooling": 0.04},
+      "T4MB": {"cost": 8, "day": 0, "power": 24.1, "capacity": 0, "heat": 15.8, "cooling": 0.33},
+      "T5RAM": {"cost": 10, "day": 1.5, "power": 12, "capacity": 0, "heat": 0, "cooling": 0.02},
+      "T5GPU": {"cost": 340, "day": 45, "power": 659, "capacity": 0, "heat": 12, "cooling": 0.017},
+      "T5CPU": {"cost": 100, "day": 24, "power": 211.9, "capacity": 0, "heat": 5.3, "cooling": 0.076},
+      "T5COOL": {"cost": 25, "day": 0, "power": 21.2, "capacity": 0, "heat": 3.1, "cooling": 0.052},
+      "T5PS": {"cost": 25, "day": 0, "power": 41.3, "capacity": 2000, "heat": -2, "cooling": 0},
+      "T5MB": {"cost": 25, "day": 0, "power": 20.1, "capacity": 0, "heat": -5.1, "cooling": 0.199}
+    };
+
+    // Chassis hardware slots definition
+    const SLOTS = [
+      {"type": "MB", "min": 0},
+      {"type": "CPU", "min": 3},
+      {"type": "CPU", "min": 5},
+      {"type": "COOL", "min": 3},
+      {"type": "COOL", "min": 5},
+      {"type": "PS", "min": 3},
+      {"type": "PS", "min": 5},
+      {"type": "GPU", "min": 3},
+      {"type": "GPU", "min": 3},
+      {"type": "GPU", "min": 4},
+      {"type": "GPU", "min": 5},
+      {"type": "RAM", "min": 3},
+      {"type": "RAM", "min": 3},
+      {"type": "RAM", "min": 4},
+      {"type": "RAM", "min": 4},
+      {"type": "RAM", "min": 5},
+      {"type": "RAM", "min": 5},
+      {"type": "RAM", "min": 5},
+      {"type": "RAM", "min": 5}
+    ];
+
+    const TYPE_STYLES = {
+      MB: { label: 'Motherboard', badge: 'bg-zinc-800 text-zinc-300 border-zinc-700' },
+      CPU: { label: 'Processor', badge: 'bg-amber-950/60 text-amber-300 border-amber-800/40' },
+      COOL: { label: 'Cooler', badge: 'bg-sky-950/60 text-sky-300 border-sky-800/40' },
+      PS: { label: 'Power Supply', badge: 'bg-purple-950/60 text-purple-300 border-purple-800/40' },
+      GPU: { label: 'Graphics Card', badge: 'bg-lime-950/60 text-lime-300 border-lime-800/40' },
+      RAM: { label: 'Memory', badge: 'bg-blue-950/60 text-blue-300 border-blue-800/40' }
+    };
+
+    // Storage Key & State Schema
+    const STORAGE_KEY = 'rust_hc_planner_v2';
+    
+    let state = {
+      lang: 'en',
+      rigs: [],
+      draft: Array(19).fill(''),
+      draftName: 'Rig #1',
+      wipeDays: 14,
+      startDate: '',
+      wipeDate: '',
+      wipeCycle: 14,
+      editingIndex: null
+    };
+
+    // Toast alert handler
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      const text = document.getElementById('toast-text');
+      text.textContent = message;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+
+    // Tab Switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.view-panel').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('tab-active'));
+
+      const target = document.getElementById(`view-${tabId}`);
+      const targetBtn = document.getElementById(`tab-${tabId}`);
+      if (target) target.classList.remove('hidden');
+      if (targetBtn) targetBtn.classList.add('tab-active');
+
+      if (tabId === 'farm') {
+        renderFarmView();
+      } else if (tabId === 'database') {
+        renderDatabaseTable();
+      }
+    }
+
+    // Format local date for input
+    function formatLocalDate(d) {
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    // Default initialization dates
+    function initDefaultDates() {
+      const now = new Date();
+      if (!state.startDate) {
+        state.startDate = formatLocalDate(now);
+      }
+      if (!state.wipeDate) {
+        const wipe = new Date(now.getTime() + 14 * 24 * 3600 * 1000);
+        state.wipeDate = formatLocalDate(wipe);
+      }
+      document.getElementById('date-start').value = state.startDate;
+      document.getElementById('date-wipe').value = state.wipeDate;
+      document.getElementById('wipe-cycle-days').value = state.wipeCycle;
+    }
+
+    // Enforce motherboard tier restrictions
+    function normalizeDraft() {
+      const mbTier = state.draft[0] ? parseInt(state.draft[0].slice(1), 10) : 0;
+      for (let i = 1; i < state.draft.length; i++) {
+        if (SLOTS[i].min > mbTier) {
+          state.draft[i] = '';
+        }
+      }
+    }
+
+    // Calculate electrical, yield, and thermal statistics for any slot array
+    function calculateRig(slots) {
+      const clean = [...slots];
+      const mbTier = clean[0] ? parseInt(clean[0].slice(1), 10) : 0;
+      for (let i = 1; i < clean.length; i++) {
+        if (SLOTS[i].min > mbTier) clean[i] = '';
+      }
+
+      const result = { cost: 0, day: 0, power: 0, capacity: 0, heat: 0, cooling: 0 };
+      clean.forEach((tier, i) => {
+        if (!tier) return;
+        const key = tier + SLOTS[i].type;
+        const part = PARTS[key];
+        if (part) {
+          result.cost += part.cost;
+          result.day += part.day;
+          result.power += part.power;
+          result.capacity += part.capacity;
+          result.heat += part.heat;
+          result.cooling += part.cooling;
+        }
+      });
+
+      result.payback = result.day > 0 ? result.cost / result.day : null;
+      result.hasMB = !!clean[0];
+      result.hasPS = clean.some((val, i) => val && SLOTS[i].type === 'PS');
+      result.complete = result.hasMB && result.hasPS;
+      result.overload = result.power > result.capacity;
+      return result;
+    }
+
+    // Render slot dropdowns in Chassis Expansion
+    function initSlotsDOM() {
+      const grid = document.getElementById('slots-grid');
+      grid.innerHTML = '';
+
+      for (let i = 1; i < SLOTS.length; i++) {
+        const slot = SLOTS[i];
+        const style = TYPE_STYLES[slot.type];
+        const count = SLOTS.slice(1, i + 1).filter(s => s.type === slot.type).length;
+
+        const card = document.createElement('div');
+        card.id = `slot-card-${i}`;
+        card.className = "bg-zinc-950/80 border border-zinc-800/80 rounded-lg p-3 transition-all";
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold px-1.5 py-0.5 rounded border ${style.badge}">
+              ${slot.type} #${count}
+            </span>
+            <span class="text-[10px] uppercase font-mono-val px-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-500">
+              Min T${slot.min}
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <select id="slot-select-${i}" data-index="${i}" class="w-full bg-zinc-900 border border-zinc-800 text-zinc-200 text-xs rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-lime-500">
+              <option value="">[ Empty Slot ]</option>
+              <option value="T3">Tier 3 (${PARTS['T3' + slot.type].cost} HC)</option>
+              <option value="T4">Tier 4 (${PARTS['T4' + slot.type].cost} HC)</option>
+              <option value="T5">Tier 5 (${PARTS['T5' + slot.type].cost} HC)</option>
+            </select>
+          </div>
+          <div id="slot-meta-${i}" class="text-[10px] text-zinc-500 mt-2 h-3.5 truncate"></div>
+        `;
+        grid.appendChild(card);
+      }
+
+      // Slot select change event delegation
+      grid.addEventListener('change', (e) => {
+        if (e.target.dataset.index) {
+          const idx = parseInt(e.target.dataset.index, 10);
+          state.draft[idx] = e.target.value;
+          saveLocalState();
+          updateUI();
+        }
+      });
+
+      // Motherboard master selector listener
+      document.getElementById('mb-selector').addEventListener('change', (e) => {
+        state.draft[0] = e.target.value;
+        normalizeDraft();
+        saveLocalState();
+        updateUI();
+      });
+
+      // Rig Name listener
+      document.getElementById('rig-name-input').addEventListener('input', (e) => {
+        state.draftName = e.target.value;
+        saveLocalState();
+      });
+
+      // Single Rig Wipe listener
+      document.getElementById('wipe-days').addEventListener('input', (e) => {
+        state.wipeDays = parseFloat(e.target.value) || 14;
+        saveLocalState();
+        updateAnalytics();
+      });
+
+      // Farm Date listeners
+      document.getElementById('date-start').addEventListener('change', (e) => {
+        state.startDate = e.target.value;
+        saveLocalState();
+        renderFarmView();
+      });
+      document.getElementById('date-wipe').addEventListener('change', (e) => {
+        state.wipeDate = e.target.value;
+        saveLocalState();
+        renderFarmView();
+      });
+      document.getElementById('wipe-cycle-days').addEventListener('change', (e) => {
+        state.wipeCycle = parseInt(e.target.value, 10) || 14;
+        saveLocalState();
+        renderFarmView();
+      });
+
+      // Language Toggle
+      document.getElementById('lang-btn').addEventListener('click', () => {
+        state.lang = state.lang === 'en' ? 'de' : 'en';
+        document.getElementById('lang-btn').textContent = state.lang.toUpperCase();
+        saveLocalState();
+        showToast(`Language switched to ${state.lang.toUpperCase()}`);
+      });
+    }
+
+    // Update UI elements based on state.draft
+    function updateUI() {
+      const mbTier = state.draft[0] ? parseInt(state.draft[0].slice(1), 10) : 0;
+      let occupiedCount = 0;
+
+      // Master Motherboard
+      document.getElementById('mb-selector').value = state.draft[0];
+      const mbSummary = document.getElementById('mb-summary');
+      if (state.draft[0]) {
+        const p = PARTS[state.draft[0] + 'MB'];
+        mbSummary.innerHTML = `<span class="text-lime-400 font-semibold font-mono-val">${state.draft[0]} MB</span> active: Cost ${p.cost} HC · Power ${p.power} W · Heat ${p.heat} · Cooling +${(p.cooling * 100).toFixed(1)}%`;
+      } else {
+        mbSummary.textContent = "Select a motherboard to energize the rig chassis and unblock downstream hardware sockets.";
+      }
+
+      // Expansion Slots
+      for (let i = 1; i < SLOTS.length; i++) {
+        const slot = SLOTS[i];
+        const card = document.getElementById(`slot-card-${i}`);
+        const select = document.getElementById(`slot-select-${i}`);
+        const meta = document.getElementById(`slot-meta-${i}`);
+        const isLocked = slot.min > mbTier;
+
+        select.disabled = isLocked;
+        select.value = state.draft[i];
+
+        if (isLocked) {
+          card.classList.add('opacity-40', 'bg-zinc-950/40', 'border-dashed');
+          card.classList.remove('border-zinc-800/80', 'bg-zinc-950/80');
+          meta.innerHTML = `<span class="text-rose-400/80">🔒 Requires T${slot.min} Motherboard</span>`;
+        } else {
+          card.classList.remove('opacity-40', 'bg-zinc-950/40', 'border-dashed');
+          card.classList.add('border-zinc-800/80', 'bg-zinc-950/80');
+
+          if (state.draft[i]) {
+            occupiedCount++;
+            const p = PARTS[state.draft[i] + slot.type];
+            let details = `Cost: ${p.cost} HC | +${p.power}W`;
+            if (p.day > 0) details += ` | Yield: ${p.day} HC/d`;
+            if (p.capacity > 0) details += ` | Capacity: ${p.capacity}W`;
+            meta.textContent = details;
+          } else {
+            meta.textContent = 'Socket Available';
+          }
+        }
+      }
+
+      document.getElementById('slot-counter').textContent = `${occupiedCount} / 18 Occupied`;
+      document.getElementById('rig-name-input').value = state.draftName;
+
+      // Edit Mode visuals
+      const editingIndicator = document.getElementById('editing-indicator');
+      const cancelEditBtn = document.getElementById('cancel-edit-btn');
+      const saveRigBtn = document.getElementById('save-rig-btn');
+
+      if (state.editingIndex !== null) {
+        editingIndicator.classList.remove('hidden');
+        cancelEditBtn.classList.remove('hidden');
+        saveRigBtn.innerHTML = `<span>💾 Update Rig in Farm</span>`;
+      } else {
+        editingIndicator.classList.add('hidden');
+        cancelEditBtn.classList.add('hidden');
+        saveRigBtn.innerHTML = `<span>💾 Save Rig to Farm</span>`;
+      }
+
+      updateAnalytics();
+      updateFarmBadge();
+    }
+
+    // Refresh live stats and gauges for the current draft
+    function updateAnalytics() {
+      const stats = calculateRig(state.draft);
+      const statusPill = document.getElementById('status-pill');
+
+      // Rig Status Pill
+      if (!stats.hasMB) {
+        statusPill.className = "text-xs font-bold px-2 py-0.5 rounded uppercase font-mono-val bg-zinc-800 text-zinc-400";
+        statusPill.textContent = "No Motherboard";
+      } else if (!stats.hasPS) {
+        statusPill.className = "text-xs font-bold px-2 py-0.5 rounded uppercase font-mono-val bg-amber-950 text-amber-400 border border-amber-700/50";
+        statusPill.textContent = "No Power Supply";
+      } else if (stats.overload) {
+        statusPill.className = "text-xs font-bold px-2 py-0.5 rounded uppercase font-mono-val bg-rose-950 text-rose-400 border border-rose-700/50 animate-pulse";
+        statusPill.textContent = "PSU Overload";
+      } else {
+        statusPill.className = "text-xs font-bold px-2 py-0.5 rounded uppercase font-mono-val bg-lime-950 text-lime-400 border border-lime-700/50";
+        statusPill.textContent = "Operational";
+      }
+
+      // Earnings Metrics
+      const effectiveDay = stats.complete && !stats.overload ? stats.day : stats.day;
+      document.getElementById('stat-day').textContent = effectiveDay.toFixed(4);
+      document.getElementById('stat-hour').textContent = (effectiveDay / 24).toFixed(4);
+      document.getElementById('stat-cost').textContent = stats.cost.toFixed(2);
+
+      const paybackEl = document.getElementById('stat-payback');
+      if (stats.payback !== null && stats.complete) {
+        paybackEl.textContent = stats.payback.toFixed(1);
+      } else {
+        paybackEl.textContent = "—";
+      }
+
+      // Power Demand Gauge
+      const pText = document.getElementById('power-text');
+      const pBar = document.getElementById('power-bar');
+      const overloadWarn = document.getElementById('overload-warning');
+
+      pText.textContent = `${stats.power.toFixed(1)} / ${stats.capacity.toFixed(0)} W`;
+      const powerPct = stats.capacity > 0 ? Math.min((stats.power / stats.capacity) * 100, 100) : (stats.power > 0 ? 100 : 0);
+      pBar.style.width = `${powerPct}%`;
+
+      if (stats.overload) {
+        pBar.className = "h-full bg-rose-500 transition-all duration-300";
+        pText.classList.add('text-rose-400');
+        overloadWarn.classList.remove('hidden');
+      } else {
+        pBar.className = "h-full bg-emerald-500 transition-all duration-300";
+        pText.classList.remove('text-rose-400');
+        overloadWarn.classList.add('hidden');
+      }
+
+      // Heat & Cooling Gauges
+      const heatDisplay = Math.max(0, stats.heat);
+      document.getElementById('heat-text').textContent = heatDisplay.toFixed(1);
+      document.getElementById('heat-bar').style.width = `${Math.min(heatDisplay, 100)}%`;
+
+      document.getElementById('cool-text').textContent = `${(stats.cooling * 100).toFixed(1)}%`;
+      document.getElementById('cool-bar').style.width = `${Math.min(stats.cooling * 100, 100)}%`;
+
+      // Single Rig Wipe Calculation
+      const days = parseFloat(document.getElementById('wipe-days').value) || 0;
+      const netGain = (effectiveDay * days) - stats.cost;
+      const netEl = document.getElementById('stat-net');
+      netEl.textContent = `${netGain >= 0 ? '+' : ''}${netGain.toFixed(2)} HC`;
+      if (netGain >= 0) {
+        netEl.className = "font-mono-val font-bold text-sm text-lime-400";
+      } else {
+        netEl.className = "font-mono-val font-bold text-sm text-rose-400";
+      }
+    }
+
+    // Set Quick Presets (T3, T4, T5, Clear)
+    function setPreset(name) {
+      if (name === 'clear') {
+        state.draft = Array(19).fill('');
+      } else if (name === 'T3') {
+        state.draft = SLOTS.map(s => s.min <= 3 ? 'T3' : '');
+      } else if (name === 'T4') {
+        state.draft = SLOTS.map(s => s.min <= 4 ? 'T4' : '');
+      } else if (name === 'T5') {
+        state.draft = SLOTS.map(() => 'T5');
+      }
+      normalizeDraft();
+      saveLocalState();
+      updateUI();
+      showToast(`Applied ${name.toUpperCase()} Rig Preset`);
+    }
+
+    // Save or Update Rig in Farm
+    function saveCurrentRig() {
+      if (!state.draft[0]) {
+        showToast("⚠️ Select at least a Motherboard before saving!");
+        return;
+      }
+
+      const name = state.draftName.trim() || `Rig #${state.rigs.length + 1}`;
+      const rigObj = {
+        name: name,
+        slots: [...state.draft]
+      };
+
+      if (state.editingIndex !== null) {
+        state.rigs[state.editingIndex] = rigObj;
+        showToast(`Updated "${name}" in your Farm`);
+        state.editingIndex = null;
+      } else {
+        state.rigs.push(rigObj);
+        showToast(`Saved "${name}" to your Farm`);
+      }
+
+      // Reset Draft to a new default
+      state.draftName = `Rig #${state.rigs.length + 1}`;
+      saveLocalState();
+      updateUI();
+    }
+
+    // Edit an existing Rig from Farm
+    function editRig(index) {
+      if (!state.rigs[index]) return;
+      state.editingIndex = index;
+      state.draft = [...state.rigs[index].slots];
+      state.draftName = state.rigs[index].name;
+      normalizeDraft();
+      saveLocalState();
+      switchTab('builder');
+      updateUI();
+      showToast(`Editing "${state.draftName}"`);
+    }
+
+    // Cancel Active Edit
+    function cancelEdit() {
+      state.editingIndex = null;
+      state.draftName = `Rig #${state.rigs.length + 1}`;
+      saveLocalState();
+      updateUI();
+      showToast("Edit cancelled");
+    }
+
+    // Delete Rig from Farm
+    function deleteRig(index) {
+      const removed = state.rigs.splice(index, 1);
+      if (state.editingIndex === index) {
+        state.editingIndex = null;
+      }
+      saveLocalState();
+      renderFarmView();
+      updateFarmBadge();
+      showToast(`Removed "${removed[0].name}" from farm`);
+    }
+
+    // Update Header Badge Count
+    function updateFarmBadge() {
+      const badge = document.getElementById('farm-badge');
+      badge.textContent = state.rigs.length;
+    }
+
+    // Advance Wipe by 1 Cycle
+    function advanceWipeCycle() {
+      const currentWipe = new Date(state.wipeDate);
+      if (isNaN(currentWipe.getTime())) {
+        showToast("Invalid wipe date format");
+        return;
+      }
+      currentWipe.setDate(currentWipe.getDate() + state.wipeCycle);
+      state.wipeDate = formatLocalDate(currentWipe);
+      document.getElementById('date-wipe').value = state.wipeDate;
+      saveLocalState();
+      renderFarmView();
+      showToast(`Advanced wipe date by +${state.wipeCycle} days`);
+    }
+
+    // Render Farm Overview View
+    function renderFarmView() {
+      updateFarmBadge();
+      const listContainer = document.getElementById('farm-rigs-list');
+      const countEl = document.getElementById('farm-rig-count');
+      countEl.textContent = `${state.rigs.length} ${state.rigs.length === 1 ? 'Rig' : 'Rigs'} Active`;
+
+      // Aggregate Totals
+      let totalDay = 0;
+      let totalCost = 0;
+      let totalPower = 0;
+      let totalCapacity = 0;
+
+      const rigStats = state.rigs.map(r => {
+        const s = calculateRig(r.slots);
+        totalDay += s.day;
+        totalCost += s.cost;
+        totalPower += s.power;
+        totalCapacity += s.capacity;
+        return s;
+      });
+
+      document.getElementById('farm-stat-day').textContent = totalDay.toFixed(4);
+      document.getElementById('farm-stat-hour').textContent = `~${(totalDay / 24).toFixed(4)} HC/h`;
+      document.getElementById('farm-stat-cost').textContent = totalCost.toFixed(2);
+      document.getElementById('farm-stat-payback').textContent = totalDay > 0 ? (totalCost / totalDay).toFixed(1) : '—';
+      document.getElementById('farm-stat-power').textContent = totalPower.toFixed(0);
+      document.getElementById('farm-stat-capacity').textContent = `Capacity: ${totalCapacity.toFixed(0)} W`;
+
+      // Render Rig Cards
+      if (state.rigs.length === 0) {
+        listContainer.innerHTML = `
+          <div class="text-center py-8 border border-dashed border-zinc-800 rounded-lg text-zinc-500 text-xs">
+            <p class="mb-2">Your server farm is currently empty.</p>
+            <button onclick="switchTab('builder')" class="px-3 py-1.5 rounded bg-lime-500 hover:bg-lime-400 text-zinc-950 font-bold transition">
+              Configure Your First Rig
+            </button>
+          </div>
+        `;
+      } else {
+        listContainer.innerHTML = state.rigs.map((rig, idx) => {
+          const stats = rigStats[idx];
+          let statusBadge = '';
+          if (!stats.hasMB) {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-400 font-mono-val">NO MB</span>`;
+          } else if (!stats.hasPS) {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-400 font-mono-val">NO PSU</span>`;
+          } else if (stats.overload) {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] bg-rose-950 text-rose-400 font-mono-val">OVERLOAD</span>`;
+          } else {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] bg-lime-950 text-lime-400 border border-lime-800/40 font-mono-val">ACTIVE</span>`;
+          }
+
+          return `
+            <div class="bg-zinc-950/70 border border-zinc-800/80 rounded-lg p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center font-tech font-bold text-sm text-lime-400">
+                  #${idx + 1}
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h4 class="font-bold text-sm text-zinc-100">${escapeHTML(rig.name)}</h4>
+                    ${statusBadge}
+                  </div>
+                  <span class="text-xs text-zinc-500 font-mono-val">MB: ${rig.slots[0] || 'None'} · Power: ${stats.power.toFixed(0)}/${stats.capacity.toFixed(0)}W</span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-4 text-xs font-mono-val">
+                <div>
+                  <span class="text-zinc-500 block text-[10px]">Daily Rate</span>
+                  <span class="font-bold text-lime-400">${stats.day.toFixed(2)} HC/d</span>
+                </div>
+                <div>
+                  <span class="text-zinc-500 block text-[10px]">Rig Cost</span>
+                  <span class="font-bold text-amber-400">${stats.cost.toFixed(2)} HC</span>
+                </div>
+                <div>
+                  <span class="text-zinc-500 block text-[10px]">Payback</span>
+                  <span class="font-bold text-sky-400">${stats.payback !== null ? stats.payback.toFixed(1) + ' d' : '—'}</span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button onclick="editRig(${idx})" class="px-2.5 py-1 text-xs font-semibold rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition">
+                  Edit
+                </button>
+                <button onclick="deleteRig(${idx})" class="px-2.5 py-1 text-xs font-semibold rounded bg-rose-950/40 hover:bg-rose-900/60 border border-rose-900/50 text-rose-300 transition">
+                  ✕
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Wipe Forecast Calculations
+      const startMs = Date.parse(state.startDate);
+      const wipeMs = Date.parse(state.wipeDate);
+      const nowMs = Date.now();
+
+      const countdownEl = document.getElementById('countdown-display');
+      const grossEl = document.getElementById('forecast-gross');
+      const netEl = document.getElementById('forecast-net');
+      const tableBody = document.getElementById('forecast-table-body');
+
+      if (isNaN(startMs) || isNaN(wipeMs) || startMs >= wipeMs) {
+        countdownEl.textContent = 'Invalid Dates';
+        grossEl.textContent = '—';
+        netEl.textContent = '—';
+        tableBody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-zinc-500">Please provide a valid Commission Start Date earlier than the Wipe Date.</td></tr>`;
+        return;
+      }
+
+      const totalFarmingHours = Math.max(0, (wipeMs - startMs) / (1000 * 3600));
+      const remainingHours = Math.max(0, (wipeMs - nowMs) / (1000 * 3600));
+      const farmingDays = totalFarmingHours / 24;
+
+      countdownEl.textContent = `${remainingHours.toFixed(1)} hrs`;
+      const grossTotal = totalDay * farmingDays;
+      const netTotal = grossTotal - totalCost;
+
+      grossEl.textContent = `${grossTotal.toFixed(2)} HC`;
+      netEl.textContent = `${netTotal >= 0 ? '+' : ''}${netTotal.toFixed(2)} HC`;
+      netEl.className = `text-xl font-bold font-mono-val ${netTotal >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+      // Populate Rig Forecast Table
+      if (state.rigs.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="6" class="p-3 text-center text-zinc-500">No active rigs configured in farm.</td></tr>`;
+      } else {
+        tableBody.innerHTML = state.rigs.map((rig, i) => {
+          const stats = rigStats[i];
+          const rigGross = stats.day * farmingDays;
+          const rigNet = rigGross - stats.cost;
+          const isPaid = stats.payback !== null && stats.payback <= farmingDays;
+
+          return `
+            <tr class="hover:bg-zinc-800/40 transition">
+              <td class="p-2.5 font-bold text-zinc-200">${escapeHTML(rig.name)}</td>
+              <td class="p-2.5 font-mono-val text-zinc-400">${rig.slots[0] || '—'}</td>
+              <td class="p-2.5 font-mono-val text-lime-400">${stats.day.toFixed(2)} HC</td>
+              <td class="p-2.5 font-mono-val text-zinc-200">${rigGross.toFixed(2)} HC</td>
+              <td class="p-2.5 font-mono-val font-semibold ${rigNet >= 0 ? 'text-emerald-400' : 'text-rose-400'}">
+                ${rigNet >= 0 ? '+' : ''}${rigNet.toFixed(2)} HC
+              </td>
+              <td class="p-2.5 text-center">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono-val font-bold ${isPaid ? 'bg-lime-950 text-lime-400 border border-lime-800/50' : 'bg-zinc-800 text-zinc-500'}">
+                  ${isPaid ? 'YES' : 'NO'}
+                </span>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    // Render Hardware Benchmark Table
+    function renderDatabaseTable() {
+      const tbody = document.getElementById('db-table-body');
+      const filter = document.getElementById('db-filter').value;
+
+      const entries = Object.entries(PARTS).filter(([code]) => {
+        if (filter === 'ALL') return true;
+        return code.endsWith(filter);
+      });
+
+      tbody.innerHTML = entries.map(([code, p]) => {
+        const tier = code.slice(0, 2);
+        const type = code.slice(2);
+        const payback = p.day > 0 ? (p.cost / p.day).toFixed(2) + ' d' : '—';
+        const cooling = (p.cooling * 100).toFixed(1) + '%';
+
+        return `
+          <tr class="hover:bg-zinc-800/30 transition">
+            <td class="p-3 font-semibold text-zinc-200">${code}</td>
+            <td class="p-3 text-zinc-400">${TYPE_STYLES[type] ? TYPE_STYLES[type].label : type}</td>
+            <td class="p-3"><span class="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">${tier}</span></td>
+            <td class="p-3 text-amber-400 font-semibold">${p.cost.toFixed(2)}</td>
+            <td class="p-3 text-lime-400">${p.day > 0 ? p.day.toFixed(4) : '—'}</td>
+            <td class="p-3 text-zinc-300">${p.power.toFixed(1)}</td>
+            <td class="p-3 text-purple-300">${p.capacity > 0 ? p.capacity + ' W' : '—'}</td>
+            <td class="p-3 text-zinc-400">H: ${p.heat} / C: +${cooling}</td>
+            <td class="p-3 font-bold ${p.day > 0 ? 'text-sky-400' : 'text-zinc-600'}">${payback}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Export Farm as JSON File
+    function exportFarmJSON() {
+      const data = {
+        app: 'Rust HC Rig Planner',
+        version: 2.0,
+        exportedAt: new Date().toISOString(),
+        rigs: state.rigs,
+        startDate: state.startDate,
+        wipeDate: state.wipeDate,
+        wipeCycle: state.wipeCycle
+      };
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rust_hc_farm_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("Exported farm backup JSON");
+    }
+
+    // Import Farm from JSON File
+    document.getElementById('file-import').addEventListener('change', async (e) => {
+      try {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const text = await file.text();
+        const data = JSON.parse(text);
+
+        if (Array.isArray(data.rigs)) {
+          state.rigs = data.rigs.map(r => ({
+            name: typeof r.name === 'string' ? r.name : 'Imported Rig',
+            slots: Array.isArray(r.slots) && r.slots.length === 19 ? r.slots : Array(19).fill('')
+          }));
+          if (data.startDate) state.startDate = data.startDate;
+          if (data.wipeDate) state.wipeDate = data.wipeDate;
+          if (data.wipeCycle) state.wipeCycle = parseInt(data.wipeCycle, 10) || 14;
+
+          saveLocalState();
+          initDefaultDates();
+          renderFarmView();
+          updateFarmBadge();
+          showToast(`Imported ${state.rigs.length} rigs successfully`);
+        } else {
+          showToast("⚠️ Invalid backup JSON format!");
+        }
+      } catch (err) {
+        showToast("⚠️ Error reading backup file");
+      } finally {
+        e.target.value = '';
+      }
+    });
+
+    // Escape helper
+    function escapeHTML(str) {
+      return String(str).replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+      }[tag] || tag));
+    }
+
+    // Persistence in localStorage
+    function saveLocalState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        // Safe failover if storage is disabled
+      }
+    }
+
+    function loadLocalState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          state = { ...state, ...parsed };
+          if (!Array.isArray(state.draft) || state.draft.length !== 19) {
+            state.draft = Array(19).fill('');
+          }
+          if (!Array.isArray(state.rigs)) {
+            state.rigs = [];
+          }
+        }
+      } catch (e) {
+        // Reset to default on parse error
+      }
+    }
+
+    // Initial Startup
+    window.onload = function() {
+      loadLocalState();
+      initSlotsDOM();
+      initDefaultDates();
+      normalizeDraft();
+      
+      // If empty draft on clean start, initialize with T3 baseline
+      if (!state.draft[0]) {
+        state.draft = SLOTS.map(s => s.min <= 3 ? 'T3' : '');
+      }
+
+      updateUI();
+      renderFarmView();
+      renderDatabaseTable();
+
+      // Countdown tick every 10 seconds
+      setInterval(() => {
+        const wipeMs = Date.parse(state.wipeDate);
+        if (!isNaN(wipeMs)) {
+          const diffHours = Math.max(0, (wipeMs - Date.now()) / (3600 * 1000));
+          const cd = document.getElementById('countdown-display');
+          if (cd) cd.textContent = `${diffHours.toFixed(1)} hrs`;
+        }
+      }, 10000);
+    };
+  </script>
+</body>
+</html>
